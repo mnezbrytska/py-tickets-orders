@@ -60,6 +60,17 @@ class MovieSessionSerializer(serializers.ModelSerializer):
         fields = ("id", "show_time", "movie", "cinema_hall")
 
 
+class MovieSessionCreateSerializer(serializers.ModelSerializer):
+    movie = serializers.PrimaryKeyRelatedField(queryset=Movie.objects.all())
+    cinema_hall = serializers.PrimaryKeyRelatedField(
+        queryset=CinemaHall.objects.all()
+    )
+
+    class Meta:
+        model = MovieSession
+        fields = ("id", "show_time", "movie", "cinema_hall")
+
+
 class MovieSessionListSerializer(MovieSessionSerializer):
     movie_title = serializers.CharField(source="movie.title", read_only=True)
     cinema_hall_name = serializers.CharField(
@@ -87,8 +98,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Ticket
-        fields = ("id", "row", "seat", "movie_session", "order")
-        read_only_fields = ("order",)
+        fields = ("id", "row", "seat", "movie_session")
 
 
 class TakenPlacesSerializer(serializers.ModelSerializer):
@@ -102,7 +112,8 @@ class MovieSessionDetailSerializer(MovieSessionSerializer):
     cinema_hall = CinemaHallSerializer(many=False, read_only=True)
     taken_places = TakenPlacesSerializer(
         source="tickets",
-        many=True, read_only=True
+        many=True,
+        read_only=True
     )
 
     class Meta:
@@ -111,16 +122,29 @@ class MovieSessionDetailSerializer(MovieSessionSerializer):
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    tickets = TicketSerializer(many=True, allow_empty=False)
+    tickets = TicketSerializer(
+        many=True,
+        read_only=False,
+        allow_empty=False,
+    )
 
     class Meta:
         model = Order
-        fields = ("id", "created_at", "tickets",)
+        fields = ["id", "tickets", "created_at"]
 
-    def create(self, validated_data):
-        tickets_data = validated_data.pop("tickets")
+
+class OrderCreateSerializer(OrderSerializer):
+    tickets = TicketSerializer(
+        many=True,
+        read_only=False,
+        allow_empty=False
+    )
+
+    def create(self, validated_data: dict) -> Order:
         with transaction.atomic():
-
+            tickets_data = validated_data.pop("tickets")
             order = Order.objects.create(**validated_data)
             for ticket_data in tickets_data:
                 Ticket.objects.create(order=order, **ticket_data)
+
+            return order

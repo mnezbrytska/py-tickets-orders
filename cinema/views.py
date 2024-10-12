@@ -15,7 +15,7 @@ from cinema.serializers import (
     MovieDetailSerializer,
     MovieSessionDetailSerializer,
     MovieListSerializer,
-    OrderSerializer,
+    OrderSerializer, OrderCreateSerializer,
 )
 
 
@@ -75,11 +75,9 @@ class MovieViewSet(viewsets.ModelViewSet):
 
 
 class MovieSessionViewSet(viewsets.ModelViewSet):
-    queryset = MovieSession.objects.all()
-    serializer_class = MovieSessionSerializer
 
     def get_queryset(self):
-        queryset = MovieSession.objects.all()
+        queryset = MovieSession.objects.select_related("cinema_hall", "movie")
 
         movie_id = self.request.query_params.get("movie")
         if movie_id:
@@ -126,7 +124,16 @@ class OrderViewSet(viewsets.ModelViewSet):
     pagination_class = OrderPagination
 
     def get_queryset(self):
-        return self.queryset.filter(user=self.request.user)
+        return self.queryset.filter(
+            user=self.request.user
+        ).prefetch_related(
+            "tickets__movie_session"
+        )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return OrderCreateSerializer
+        return OrderSerializer
